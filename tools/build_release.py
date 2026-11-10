@@ -21,6 +21,40 @@ MOD = os.path.dirname(HERE)
 SRC = os.path.join(MOD, 'dist_src')
 
 
+def add_nth(tsv, exe, out):
+    """Copy the .data table with a 5th column: which occurrence (0-based, in address order) of the
+    English text, standing alone between zero bytes in .data, each row is. Another build of the exe
+    can then find texts that occur more than once (the DLL uses it when the Steam address does not fit)."""
+    import re
+    import pefile
+    pe = pefile.PE(exe, fast_load=True)
+    base = pe.OPTIONAL_HEADER.ImageBase
+    sec = [x for x in pe.sections if x.Name.rstrip(b'\0') == b'.data'][0]
+    d0 = base + sec.VirtualAddress
+    raw = sec.get_data()
+    unmap = {'n': '\n', 'r': '\r', 't': '\t', '\\': '\\'}
+
+    def unesc(t):
+        return re.sub(r'\\(.)', lambda m: unmap.get(m.group(1), m.group(0)), t)
+
+    res = []
+    for ln in open(tsv, encoding='utf-8').read().split('\n'):
+        if not ln.startswith('0x'):
+            res.append(ln + '\tnth' if ln.startswith('va\t') else ln)
+            continue
+        col = ln.split('\t')
+        va = int(col[0], 16)
+        key = b'\0' + unesc(col[2]).encode('cp1252') + b'\0'
+        nth, i = 0, raw.find(key)
+        while 0 <= i and d0 + i + 1 < va:
+            nth += 1
+            i = raw.find(key, i + 1)
+        if i < 0 or d0 + i + 1 != va:
+            raise SystemExit(f'{col[0]}: not standing alone at its address')
+        res.append('\t'.join(col[:4] + [str(nth)]))
+    open(out, 'w', encoding='utf-8', newline='\n').write('\n'.join(res))
+
+
 def main(argv):
     if len(argv) != 5:
         print(__doc__)
@@ -36,7 +70,8 @@ def main(argv):
     shutil.copy2(os.path.join(MOD, 'dsound.dll'), os.path.join(stage, 'dsound.dll'))
     shutil.copy2(os.path.join(SRC, 'avernum_jp.ini'), os.path.join(stage, 'avernum_jp.ini'))
     shutil.copy2(os.path.join(MOD, 'exe_strings.tsv'), os.path.join(data, 'avernum_jp_exe.tsv'))
-    shutil.copy2(os.path.join(MOD, 'data_strings.tsv'), os.path.join(data, 'avernum_jp_data.tsv'))   # .data text tables
+    add_nth(os.path.join(MOD, 'data_strings.tsv'), os.path.join(os.path.dirname(MOD), 'Avernum 6.exe'),
+            os.path.join(data, 'avernum_jp_data.tsv'))   # .data text tables
     t = open(os.path.join(SRC, 'README.txt'), encoding='utf-8').read()
     t = t.replace('__VERSION__', version).replace('__PAGE_URL__', page).replace('\r\n', '\n').replace('\n', '\r\n')
     with open(os.path.join(data, 'README.txt'), 'w', encoding='utf-8-sig', newline='') as fh:

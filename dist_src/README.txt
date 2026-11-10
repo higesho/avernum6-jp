@@ -9,7 +9,7 @@ Spiderweb Software の RPG「Avernum 6」（Steam 版）を日本語で遊べる
 
 ■ 対応しているゲーム
   Steam 版 Avernum 6（アプリ番号 206060）に対応しています。
-  GOG 版・Humble 版など他のストアの版は未確認です。Steam 版と同じ exe なら動きます。
+  GOG 版・Humble 版など他のストアの版でも動くように作ってありますが、動作は未確認です。
   対応できない版では日本語化を自動で止め、英語のまま普通に起動します。
   他のストアの版で試した方は、動いたかどうかを avernum_jp\avernum_jp.log を添えて GitHub の Issues でお知らせください。
 

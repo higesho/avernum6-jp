@@ -43,7 +43,7 @@ def body():
 <header class="hero">
   <div class="wrap">
     <a class="parent-link" href="https://higesho.github.io/spiderweb-ja/">← スパイダーウェブ作品 日本語化（作品一覧）</a><br>
-    <span class="eyebrow">非公式ファン翻訳 · ベータ版 v0.9.0</span>
+    <span class="eyebrow">非公式ファン翻訳 · ベータ版 v0.9.1</span>
     <h1>Avernum 6<small>日本語化パッチ</small></h1>
     <p class="lead">
       作物を枯らす謎の災いと飢え、そして北から迫るスリスの大群。危機に陥った地下世界アヴァーナムで、食料倉庫の番をしていた下っ端の兵士たちが立ち上がる——。シリーズ最終章。
@@ -93,7 +93,7 @@ def body():
     <ol class="steps">
       <li>
         <h3>ダウンロード</h3>
-        <p><a href="{REPO}/releases/latest">リリースページ</a>から <code>Avernum6_JP_v0.9.0.zip</code> をダウンロードし、展開します。</p>
+        <p><a href="{REPO}/releases/latest">リリースページ</a>から <code>Avernum6_JP_v0.9.1.zip</code> をダウンロードし、展開します。</p>
       </li>
       <li>
         <h3>ゲームのフォルダにコピー</h3>
@@ -124,7 +124,7 @@ def body():
       </div>
     </div>
     <div class="note warn" style="margin-top:18px">
-      <b>対応しているのは Steam 版です。</b>GOG 版・Humble 版など他のストアの版は未確認です。Steam 版と同じ exe なら動きます。
+      <b>対応しているのは Steam 版です。</b>GOG 版・Humble 版など他のストアの版でも動くように作ってありますが、未確認です。
       対応できない版では日本語化を自動で止め、英語のまま普通に起動します。
       他のストアの版で試した方は、動いたかどうかを <code>avernum_jp\\avernum_jp.log</code> を添えて
       <a href="{REPO}/issues">Issues</a> でお知らせいただけると助かります。

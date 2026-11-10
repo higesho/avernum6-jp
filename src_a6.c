@@ -16,6 +16,7 @@ static void load_config(const char *dir)
     g_yAdjust = GetPrivateProfileIntA("font", "y_adjust", g_yAdjust, ini);
     g_bold = GetPrivateProfileIntA("font", "bold", g_bold, ini);
     g_lineGap = GetPrivateProfileIntA("font", "line_gap", g_lineGap, ini);
+    g_forceScan = GetPrivateProfileIntA("debug", "force_scan", 0, ini);
     GetPrivateProfileStringA("font", "alpha_gamma", "", buf, sizeof buf, ini);
     if (buf[0])
         g_alphaGamma = atof(buf);
@@ -24,16 +25,16 @@ static void load_config(const char *dir)
 }
 
 // ---------------------------------------------------------------- script token estimate
-// Before tokenizing a script, 0x46b9e0 estimates the token count to size the token array.
+// Before tokenizing a script, the game estimates the token count to size the token array.
 // It counts every byte that is not a digit, letter, '_' or blank as its own token -- also
 // inside string literals -- so Japanese adds 2 per character, a long dialogue file overflows
-// the count and the game fails while loading it. A literal is still one token, so classify
-// bytes >= 0x80 like letters.
-//   0x46ba1a: cmp al,30h / jl 46ba29 / cmp al,39h / jg 46ba29   -> jmp tok_class_stub
-#define A6_TOKCLASS 0x46ba1a
-#define A6_TOK_DIGIT 0x46ba22
-#define A6_TOK_OTHER 0x46ba29
-#define A6_TOK_LETTER 0x46ba4a
+// the count and the game fails while loading it (a runtime error on starting a new game).
+// A literal is still one token, so classify bytes >= 0x80 like letters.
+//   tok_class (0x46ba1a): cmp al,30h / jl tok_other / cmp al,39h / jg tok_other -> jmp tok_class_stub
+#define A6_TOKCLASS g_hv[HV_TOK_CLASS]
+#define A6_TOK_DIGIT g_hv[HV_TOK_DIGIT]
+#define A6_TOK_OTHER g_hv[HV_TOK_OTHER]
+#define A6_TOK_LETTER g_hv[HV_TOK_LETTER]
 static const BYTE kTokClassOrig[8] = {0x3C, 0x30, 0x7C, 0x0B, 0x3C, 0x39, 0x7F, 0x07};
 static DWORD g_tokDigit, g_tokOther, g_tokLetter;
 
@@ -60,7 +61,7 @@ static int install_token_estimate_fix(void)
     DWORD old;
     if (memcmp(p, kTokClassOrig, sizeof kTokClassOrig) != 0)
     {
-        jp_log("token estimate fix: unexpected bytes at %06x (not the Steam build?)\n", A6_TOKCLASS);
+        jp_log("token estimate fix: unexpected bytes at %06x\n", A6_TOKCLASS);
         return 0;
     }
     g_tokDigit = (DWORD)VA(A6_TOK_DIGIT);
@@ -88,33 +89,32 @@ static int install_token_estimate_fix(void)
 // with GDI, rendered into textures of our own (copies of the font texture object with another
 // GL texture) and drawn with the same object methods; ASCII runs still go through draw_line so
 // English looks exactly the same.
-#define A6_DRAW_TEXT 0x47d130
-#define A6_DRAW_LINE 0x4805d0
-#define A6_CUR_FONT 0x773de4
-#define A6_LINE_H 0x773cd4
-#define A6_PEN_X 0x773de8
-#define A6_PEN_Y 0x773dec
-#define A6_MAIN_TARGET 0x6bf5cc
-#define A6_OFS_X 0x773dd8 /* draw_text offsets the rect on the main target */
-#define A6_OFS_Y 0x773ddc
-#define A6_KEEP_IN 0x481610 /* esi = RECT*, cdecl (bounds RECT by value): moves the rect inside */
-#define A6_BOUNDS 0x7734e4
-#define A6_CLIP 0x7734c4    /* left, top, right, bottom (dwords) used by draw_line */
-#define A6_NO_CLIP 0x773af0 /* byte */
-#define A6_ALPHA 0x6ac7b0   /* float */
-#define A6_ZOOM_A 0x773aec  /* float, 0 unless zoomed */
-#define A6_ZOOM_B 0x6ac7b4  /* float, 1 unless zoomed */
-#define A6_FONT_TEX 0x773ff4
-#define A6_BOUND_TEX 0x5d209c /* GL id last bound by a texture object */
-#define A6_COLOR_DIV 0x5bff58 /* double (31.0) */
-#define A6_CHARMAP 0x69d930
-#define A6_FONT12 0x69c9c8
-#define A6_FONT14 0x69cfe8
-#define A6_FONT15 0x69ccd8
-#define A6_FONT16 0x69d2f8
-#define A6_FONT24 0x69d608
+#define A6_DRAW_TEXT g_hv[HV_DRAW_TEXT]
+#define A6_DRAW_LINE g_hv[HV_DRAW_LINE]
+#define A6_CUR_FONT g_hv[HV_CUR_FONT]
+#define A6_LINE_H g_hv[HV_LINE_H]
+#define A6_PEN_X g_hv[HV_PEN_X]
+#define A6_PEN_Y g_hv[HV_PEN_Y]
+#define A6_MAIN_TARGET g_hv[HV_MAIN_TARGET]
+#define A6_OFS_X g_hv[HV_OFS_X] /* draw_text offsets the rect on the main target */
+#define A6_OFS_Y g_hv[HV_OFS_Y]
+#define A6_KEEP_IN g_hv[HV_KEEP_IN] /* esi = RECT*, cdecl (bounds RECT by value): moves the rect inside */
+#define A6_BOUNDS g_hv[HV_BOUNDS]
+#define A6_CLIP g_hv[HV_CLIP]    /* left, top, right, bottom (dwords) used by draw_line */
+#define A6_NO_CLIP g_hv[HV_NO_CLIP] /* byte */
+#define A6_ALPHA g_hv[HV_ALPHA]   /* float */
+#define A6_ZOOM_A g_hv[HV_ZOOM_A]  /* float, 0 unless zoomed */
+#define A6_ZOOM_B g_hv[HV_ZOOM_B]  /* float, 1 unless zoomed */
+#define A6_FONT_TEX g_hv[HV_FONT_TEX]
+#define A6_BOUND_TEX g_hv[HV_BOUND_TEX] /* GL id last bound by a texture object */
+#define A6_COLOR_DIV g_hv[HV_COLOR_DIV] /* double (31.0) */
+#define A6_CHARMAP g_hv[HV_CHARMAP]
+#define A6_FONT12 g_hv[HV_FONT12]
+#define A6_FONT14 g_hv[HV_FONT14]
+#define A6_FONT15 g_hv[HV_FONT15]
+#define A6_FONT16 g_hv[HV_FONT16]
+#define A6_FONT24 g_hv[HV_FONT24]
 static const BYTE kDrawTextOrig[] = {0x55, 0x8B, 0xEC, 0x81, 0xEC, 0x34, 0x05, 0x00, 0x00};
-static const BYTE kDrawLineOrig[] = {0x55, 0x8B, 0xEC, 0x83, 0xEC, 0x68};
 
 #define TEXOBJ_SIZE 0x170
 #define TEXOBJ_GLID 0x2c
@@ -674,11 +674,54 @@ static int jump_to(DWORD va, void *fn, const BYTE *expect, int len, const char *
 // Most interface text (skills, spells, help, quests, the story) is kept in fixed-size char arrays in
 // .data. avernum_jp_data.tsv (UTF-8): va, max_bytes, english, japanese. A translation is written in
 // place when the English at that address matches and the translation fits in max_bytes.
+static BYTE *g_dataStart, *g_dataEnd;
+
+// The nth place (0-based, in address order) in .data where s stands alone (a zero byte before and
+// after); *room = bytes that can be written there (up to the next non-zero byte, minus the terminator).
+// nth comes from the table's 5th column (made from the Steam build), for English texts that occur
+// several times (place names, repeated titles).
+static BYTE *find_data_string(const char *s, int nth, unsigned *room)
+{
+    size_t n = strlen(s);
+    BYTE *p, *hit = NULL;
+    int hits = 0;
+    if (!g_dataStart)
+    {
+        IMAGE_DOS_HEADER *dos = (IMAGE_DOS_HEADER *)g_base;
+        IMAGE_NT_HEADERS *nt = (IMAGE_NT_HEADERS *)(g_base + dos->e_lfanew);
+        IMAGE_SECTION_HEADER *sec = IMAGE_FIRST_SECTION(nt);
+        int i;
+        for (i = 0; i < nt->FileHeader.NumberOfSections; i++)
+            if (memcmp(sec[i].Name, ".data", 6) == 0)
+            {
+                g_dataStart = g_base + sec[i].VirtualAddress;
+                g_dataEnd = g_dataStart + sec[i].SizeOfRawData; // initialised part only
+            }
+        if (!g_dataStart)
+            return NULL;
+    }
+    for (p = g_dataStart + 1; p + n + 1 <= g_dataEnd; p++)
+        if (p[-1] == 0 && p[0] == (BYTE)s[0] && p[n] == 0 && memcmp(p, s, n) == 0 && hits++ == nth)
+        {
+            hit = p;
+            break;
+        }
+    if (!hit)
+        return NULL;
+    for (p = hit + n; p < g_dataEnd && *p == 0; p++)
+        ;
+    *room = (unsigned)(p - hit) - 1;
+    return hit;
+}
+
 static void load_data_slots(const char *dir)
 {
     char path[MAX_PATH], *buf, *line, *next;
     DWORD size;
-    int ok = 0, mismatch = 0, toolong = 0, unmappable = 0;
+    int ok = 0, mismatch = 0, toolong = 0, unmappable = 0, moved = 0, n = 0, i;
+    // every place is found before anything is written (a written row would hide its English
+    // from the search for the later rows with the same text)
+    struct { BYTE *dst; unsigned maxb; char *jp; } *todo = NULL;
     _snprintf(path, sizeof path, "%s\\avernum_jp_data.tsv", dir);
     buf = (char *)read_all(path, &size);
     if (!buf)
@@ -690,12 +733,11 @@ static void load_data_slots(const char *dir)
     buf[size] = 0;
     for (line = buf; line && *line; line = next)
     {
-        char *col[4] = {0}, *p, *jp;
+        char *col[5] = {0}, *p, *jp;
         int c = 0;
         DWORD va;
         unsigned maxb;
         BYTE *dst;
-        DWORD old;
         next = strchr(line, '\n');
         if (next)
             *next++ = 0;
@@ -704,7 +746,7 @@ static void load_data_slots(const char *dir)
         if (strncmp(line, "0x", 2) != 0)
             continue;
         col[0] = line;
-        for (p = line; *p && c < 3; p++)
+        for (p = line; *p && c < 4; p++)
             if (*p == '\t')
             {
                 *p = 0;
@@ -717,10 +759,19 @@ static void load_data_slots(const char *dir)
         va = strtoul(col[0], NULL, 16);
         maxb = (unsigned)strtoul(col[1], NULL, 10);
         dst = (BYTE *)VA(va);
-        if (strcmp((const char *)dst, col[2]) != 0)
+        if (g_forceScan || IsBadReadPtr(dst, strlen(col[2]) + 1) || strcmp((const char *)dst, col[2]) != 0)
         {
-            mismatch++;
-            continue;
+            // not at the Steam build's address: the same English, alone in its slot, elsewhere in .data
+            unsigned room;
+            dst = find_data_string(col[2], col[4] ? atoi(col[4]) : 0, &room);
+            if (!dst)
+            {
+                mismatch++;
+                continue;
+            }
+            if (room < maxb)
+                maxb = room;
+            moved++;
         }
         jp = to_game_encoding(col[3], &unmappable);
         if (strlen(jp) > maxb)
@@ -728,25 +779,26 @@ static void load_data_slots(const char *dir)
             toolong++;
             continue;
         }
-        VirtualProtect(dst, maxb + 1, PAGE_READWRITE, &old);
-        memcpy(dst, jp, strlen(jp) + 1);
-        VirtualProtect(dst, maxb + 1, old, &old);
+        todo = realloc(todo, (n + 1) * sizeof *todo);
+        todo[n].dst = dst;
+        todo[n].maxb = maxb;
+        todo[n++].jp = jp;
+    }
+    for (i = 0; i < n; i++)
+    {
+        DWORD old;
+        VirtualProtect(todo[i].dst, todo[i].maxb + 1, PAGE_READWRITE, &old);
+        memcpy(todo[i].dst, todo[i].jp, strlen(todo[i].jp) + 1);
+        VirtualProtect(todo[i].dst, todo[i].maxb + 1, old, &old);
         ok++;
     }
+    free(todo);
     free(buf);
-    jp_log("text tables: %d translated, %d not matching this exe, %d too long\n", ok, mismatch, toolong);
+    jp_log("text tables: %d translated (%d found at other addresses), %d not found in this exe, %d too long\n", ok,
+           moved, mismatch, toolong);
 }
 
 // ---------------------------------------------------------------- start-up
-// Only the Steam build is supported: when its code is not where expected, nothing is changed
-// at all and the game runs in English.
-static int steam_build_ok(void)
-{
-    return memcmp(VA(A6_DRAW_TEXT), kDrawTextOrig, sizeof kDrawTextOrig) == 0 &&
-           memcmp(VA(A6_DRAW_LINE), kDrawLineOrig, sizeof kDrawLineOrig) == 0 &&
-           memcmp(VA(A6_TOKCLASS), kTokClassOrig, sizeof kTokClassOrig) == 0;
-}
-
 BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, LPVOID reserved)
 {
     if (reason == DLL_PROCESS_ATTACH)
@@ -768,10 +820,9 @@ BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, LPVOID reserved)
         g_base = (BYTE *)GetModuleHandleA(NULL);
         jp_log("Avernum 6 JP hook loaded. base=%p face=%s bold=%d size_adjust=%d y_adjust=%d line_gap=%d\n", g_base,
                g_fontFace, g_bold, g_sizeAdjust, g_yAdjust, g_lineGap);
-        if (!steam_build_ok())
+        if (!resolve_hooks("Avernum 6.exe"))
         {
-            jp_log("not supported: this Avernum 6.exe is not the Steam build the patch was made for; "
-                   "the game runs in English\n");
+            jp_log("this Avernum 6.exe is not supported: Japanese is turned off and the game runs unchanged\n");
             return TRUE;
         }
         install_token_estimate_fix();
