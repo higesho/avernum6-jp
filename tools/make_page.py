@@ -43,7 +43,7 @@ def body():
 <header class="hero">
   <div class="wrap">
     <a class="parent-link" href="https://higesho.github.io/spiderweb-ja/">← スパイダーウェブ作品 日本語化（作品一覧）</a><br>
-    <span class="eyebrow">非公式ファン翻訳 · ベータ版 v0.9.1</span>
+    <span class="eyebrow">非公式ファン翻訳 · ベータ版 v0.9.2</span>
     <h1>Avernum 6<small>日本語化パッチ</small></h1>
     <p class="lead">
       作物を枯らす謎の災いと飢え、そして北から迫るスリスの大群。危機に陥った地下世界アヴァーナムで、食料倉庫の番をしていた下っ端の兵士たちが立ち上がる——。シリーズ最終章。
@@ -93,7 +93,7 @@ def body():
     <ol class="steps">
       <li>
         <h3>ダウンロード</h3>
-        <p><a href="{REPO}/releases/latest">リリースページ</a>から <code>Avernum6_JP_v0.9.1.zip</code> をダウンロードし、展開します。</p>
+        <p><a href="{REPO}/releases/latest">リリースページ</a>から <code>Avernum6_JP_v0.9.2.zip</code> をダウンロードし、展開します。</p>
       </li>
       <li>
         <h3>ゲームのフォルダにコピー</h3>

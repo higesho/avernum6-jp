@@ -2,6 +2,7 @@
 
 PATTERNS = [
     ('draw_text', 0x47d130, 0x47d2c4),   # up to the font selection and the line height
+    ('text_width', 0x47cfe0, 0x47d0e0),  # width of a string (start of its last character)
     ('draw_line', 0x4805d0, 0x480a2a),
     ('tex_draw', 0x488bb0, 0x488c07),    # texture object's draw method: bound-texture cache
     ('tok_count', 0x46b9e0, 0x46ba52),   # script token estimate: byte classes
@@ -10,6 +11,7 @@ PATTERNS = [
 VALUES = [
     ('draw_text', 'draw_text', 'start', 0x47d130),
     ('draw_line', 'draw_line', 'start', 0x4805d0),
+    ('text_width', 'text_width', 'start', 0x47cfe0),
     ('main_target', 'draw_text', 'abs', 0x6bf5cc),
     ('ofs_y', 'draw_text', 'abs', 0x773ddc),
     ('ofs_x', 'draw_text', 'abs', 0x773dd8),

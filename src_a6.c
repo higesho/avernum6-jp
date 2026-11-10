@@ -91,6 +91,7 @@ static int install_token_estimate_fix(void)
 // English looks exactly the same.
 #define A6_DRAW_TEXT g_hv[HV_DRAW_TEXT]
 #define A6_DRAW_LINE g_hv[HV_DRAW_LINE]
+#define A6_TEXT_WIDTH g_hv[HV_TEXT_WIDTH] /* text_width(string) cdecl: start of the last character (ax) */
 #define A6_CUR_FONT g_hv[HV_CUR_FONT]
 #define A6_LINE_H g_hv[HV_LINE_H]
 #define A6_PEN_X g_hv[HV_PEN_X]
@@ -115,6 +116,7 @@ static int install_token_estimate_fix(void)
 #define A6_FONT16 g_hv[HV_FONT16]
 #define A6_FONT24 g_hv[HV_FONT24]
 static const BYTE kDrawTextOrig[] = {0x55, 0x8B, 0xEC, 0x81, 0xEC, 0x34, 0x05, 0x00, 0x00};
+static const BYTE kTextWidthOrig[] = {0x55, 0x8B, 0xEC, 0x81, 0xEC, 0x14, 0x02, 0x00, 0x00};
 
 #define TEXOBJ_SIZE 0x170
 #define TEXOBJ_GLID 0x2c
@@ -609,8 +611,8 @@ static void __cdecl my_draw_text(DWORD target, int mode, int size, int r, int g,
     }
 }
 
-// Text without Japanese goes to the original routine, so English is laid out exactly as before.
-static DWORD g_origDrawText; // copy of the first instructions + jmp back
+// Text without Japanese goes to the original routines, so English is laid out exactly as before.
+static DWORD g_origDrawText, g_origTextWidth; // copies of the first instructions + jmp back
 
 static int __cdecl has_japanese(const unsigned char *s)
 {
@@ -638,18 +640,61 @@ __declspec(naked) static void draw_text_stub(void)
     }
 }
 
-static int make_trampoline(void)
+// The game's text width routine reads bytes above 0x7f as negative indexes into its character map
+// and returns a huge width for Japanese (item tooltips grew to the width of the screen).
+// Size of the current font, as draw_text chose it.
+static int cur_font_size(void)
 {
-    BYTE *t = (BYTE *)VirtualAlloc(NULL, 32, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
-    BYTE *orig = (BYTE *)VA(A6_DRAW_TEXT);
+    DWORD f = *(DWORD *)VA(A6_CUR_FONT);
+    if (f == (DWORD)VA(A6_FONT14))
+        return 14;
+    if (f == (DWORD)VA(A6_FONT15))
+        return 15;
+    if (f == (DWORD)VA(A6_FONT16))
+        return 16;
+    if (f == (DWORD)VA(A6_FONT24))
+        return 24;
+    return 12;
+}
+
+static int __cdecl my_text_width(const char *s)
+{
+    static TUnit u[MAX_UNITS];
+    int n;
+    if (!s || !*s)
+        return 0;
+    n = make_units((const unsigned char *)s, u, MAX_UNITS, cur_font_size());
+    return n ? u[n - 1].x : 0; // like the original: the start of the last character
+}
+
+__declspec(naked) static void text_width_stub(void)
+{
+    __asm {
+        push dword ptr [esp + 4]
+        call has_japanese
+        add esp, 4
+        test eax, eax
+        jz english
+        jmp my_text_width
+    english:
+        jmp dword ptr [g_origTextWidth]
+    }
+}
+
+// push ebp / mov ebp,esp / sub esp,imm32 (9 bytes, position independent) + jmp back
+static DWORD make_trampoline(DWORD va, const BYTE *expect, int len)
+{
+    BYTE *t, *orig = (BYTE *)VA(va);
+    if (memcmp(orig, expect, len) != 0)
+        return 0;
+    t = (BYTE *)VirtualAlloc(NULL, 32, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
     if (!t)
         return 0;
-    memcpy(t, orig, sizeof kDrawTextOrig); // push ebp / mov ebp,esp / sub esp,534h: position independent
-    t[sizeof kDrawTextOrig] = 0xE9;
-    *(DWORD *)(t + sizeof kDrawTextOrig + 1) = (DWORD)(orig + sizeof kDrawTextOrig) - (DWORD)(t + sizeof kDrawTextOrig + 5);
+    memcpy(t, orig, len);
+    t[len] = 0xE9;
+    *(DWORD *)(t + len + 1) = (DWORD)(orig + len) - (DWORD)(t + len + 5);
     FlushInstructionCache(GetCurrentProcess(), t, 32);
-    g_origDrawText = (DWORD)t;
-    return 1;
+    return (DWORD)t;
 }
 
 static int jump_to(DWORD va, void *fn, const BYTE *expect, int len, const char *name)
@@ -826,8 +871,12 @@ BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, LPVOID reserved)
             return TRUE;
         }
         install_token_estimate_fix();
-        if (make_trampoline())
+        g_origDrawText = make_trampoline(A6_DRAW_TEXT, kDrawTextOrig, sizeof kDrawTextOrig);
+        if (g_origDrawText)
             jump_to(A6_DRAW_TEXT, (void *)draw_text_stub, kDrawTextOrig, sizeof kDrawTextOrig, "draw_text");
+        g_origTextWidth = make_trampoline(A6_TEXT_WIDTH, kTextWidthOrig, sizeof kTextWidthOrig);
+        if (g_origTextWidth)
+            jump_to(A6_TEXT_WIDTH, (void *)text_width_stub, kTextWidthOrig, sizeof kTextWidthOrig, "text_width");
         load_exe_strings(data);
         load_data_slots(data);
         prepare_redirects(dir, data);
