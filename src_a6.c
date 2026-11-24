@@ -16,7 +16,10 @@ static void load_config(const char *dir)
     g_yAdjust = GetPrivateProfileIntA("font", "y_adjust", g_yAdjust, ini);
     g_bold = GetPrivateProfileIntA("font", "bold", g_bold, ini);
     g_lineGap = GetPrivateProfileIntA("font", "line_gap", g_lineGap, ini);
+#ifdef AVJP_TEST
+    // 試験版（build.bat test）だけ: [debug] force_scan=1 で探索を強制、=2 で 1 つ見つからないふりをする
     g_forceScan = GetPrivateProfileIntA("debug", "force_scan", 0, ini);
+#endif
     GetPrivateProfileStringA("font", "alpha_gamma", "", buf, sizeof buf, ini);
     if (buf[0])
         g_alphaGamma = atof(buf);
